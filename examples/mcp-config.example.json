@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "agent-architects": {
+      "url": "https://aa-mcp-server-production.up.railway.app/mcp",
+      "headers": {
+        "Authorization": "Bearer <YOUR_AA_MCP_KEY>"
+      }
+    }
+  }
+}

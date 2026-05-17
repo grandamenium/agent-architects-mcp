@@ -1,0 +1,32 @@
+{
+  "name": "agent-architects-mcp",
+  "version": "0.1.0",
+  "private": false,
+  "description": "Remote MCP server for searching Agent Architects lessons, posts, comments, and member profiles.",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit",
+    "test:member-tools": "node scripts/member-tools-smoke.mjs",
+    "test:production-smoke": "node scripts/full-production-smoke.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "latest",
+    "@supabase/supabase-js": "latest",
+    "express": "latest",
+    "openai": "latest",
+    "zod": "latest"
+  },
+  "devDependencies": {
+    "@types/express": "latest",
+    "@types/node": "latest",
+    "tsx": "latest",
+    "typescript": "latest"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
