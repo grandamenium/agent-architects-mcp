@@ -60,6 +60,7 @@ type LessonDocument = {
   source_id: string;
   source_url: string | null;
   content: string;
+  chunk_index: number | null;
   metadata: Record<string, unknown> | null;
 };
 
@@ -260,8 +261,17 @@ function metadataCourse(metadata: Record<string, unknown> | null | undefined): u
   return course;
 }
 
+function contentCourse(content: string): string | null {
+  const match = content.match(/^Course:\s*(.+)$/m);
+  return match?.[1]?.trim() || null;
+}
+
+function documentCourse(document: Pick<SearchResult | LessonDocument, 'content' | 'metadata'>): unknown {
+  return metadataCourse(document.metadata) || contentCourse(document.content);
+}
+
 function resultMatchesFilters(result: SearchResult, filters: SearchFilters): boolean {
-  if (filters.course && !textMatches(metadataCourse(result.metadata), filters.course)) return false;
+  if (filters.course && !textMatches(documentCourse(result), filters.course)) return false;
   if (filters.lesson && !textMatches(result.metadata?.title, filters.lesson)) return false;
   if (filters.lessonId && result.source_id !== filters.lessonId) return false;
   return true;
@@ -295,26 +305,41 @@ async function searchKnowledgeBase(
 async function getLesson(filters: Pick<SearchFilters, 'course' | 'lesson' | 'lessonId'>): Promise<LessonDocument[]> {
   let query = supabase
     .from('documents')
-    .select('source_id, source_url, content, metadata')
+    .select('source_id, source_url, content, chunk_index, metadata')
     .eq('source_type', 'lesson')
-    .order('source_id', { ascending: true });
+    .order('source_id', { ascending: true })
+    .order('chunk_index', { ascending: true });
 
   if (filters.lessonId) {
     query = query.eq('source_id', filters.lessonId);
   }
 
-  const { data, error } = await query.limit(100);
+  const { data, error } = await query.limit(1000);
   if (error) {
     throw new Error(`get_lesson failed: ${error.message}`);
   }
 
-  return ((data || []) as LessonDocument[])
+  const matchingChunks = ((data || []) as LessonDocument[])
     .filter((lesson) => {
-      if (filters.course && !textMatches(metadataCourse(lesson.metadata), filters.course)) return false;
+      if (filters.course && !textMatches(documentCourse(lesson), filters.course)) return false;
       if (filters.lesson && !textMatches(lesson.metadata?.title, filters.lesson)) return false;
       return true;
-    })
-    .slice(0, 10);
+    });
+
+  const lessonsBySourceId = new Map<string, LessonDocument>();
+  for (const chunk of matchingChunks) {
+    const existing = lessonsBySourceId.get(chunk.source_id);
+    if (!existing) {
+      lessonsBySourceId.set(chunk.source_id, { ...chunk });
+      continue;
+    }
+
+    existing.content = `${existing.content}\n\n${chunk.content}`;
+    existing.source_url ||= chunk.source_url;
+    existing.metadata ||= chunk.metadata;
+  }
+
+  return [...lessonsBySourceId.values()].slice(0, 10);
 }
 
 async function getMembersByHandles(handles: string[]): Promise<Map<string, MemberRow>> {
@@ -558,7 +583,7 @@ function createServer(): McpServer {
         const { content, truncated } = truncateContent(result.content);
         return {
           title: typeof result.metadata?.title === 'string' ? result.metadata.title : null,
-          course: typeof metadataCourse(result.metadata) === 'string' ? metadataCourse(result.metadata) as string : null,
+          course: typeof documentCourse(result) === 'string' ? documentCourse(result) as string : null,
           source_id: result.source_id,
           url: result.source_url,
           content,
